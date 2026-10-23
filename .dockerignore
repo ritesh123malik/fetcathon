@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+.venv
+data
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/test-results
+**/playwright-report
+*.log
+*.agent.json
+*.wallet.json

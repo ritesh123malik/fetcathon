@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: supplyrescue
+    runtime: docker
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/health
+    numInstances: 1
+    disk:
+      name: supplyrescue-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_PATH
+        value: /app/data/supplyrescue.sqlite3
+      - key: DEMO_MODE
+        value: "true"
+      - key: RUN_AGENTS
+        value: "true"
+      - key: AGENT_MAILBOX
+        value: "true"
+      - key: ASI_MODEL
+        value: asi1
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: ASI_ONE_API_KEY
+        sync: false
+      - key: AGENTVERSE_API_KEY
+        sync: false
+      - key: AGENT_SEED
+        sync: false
+      - key: AGENT_PROFILE_URL
+        sync: false
