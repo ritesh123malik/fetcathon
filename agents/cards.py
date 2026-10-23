@@ -4,6 +4,8 @@ import json
 
 from uagents_core.contrib.protocols.chat import ChatMessage, MetadataContent, TextContent
 
+from backend.catalogue import PRODUCTS
+
 
 def money(paise):
     return f"INR {paise / 100:,.2f}"
@@ -28,30 +30,23 @@ def card(text: str, kind: str, payload: dict):
 
 def request_form():
     return card(
-        "SupplyRescue coordinates demo stationery suppliers. Enter quantities, budget and deadline. "
+        "SupplyRescue coordinates demo workshop, conference, classroom and onboarding supplies. "
+        "Say catalogue for products and examples, track ORDER-ID for fulfilment, or start to reset a request. "
+        "Enter quantities, budget and deadline. "
         "All confirmations reserve demo inventory; no real purchases or payments occur.",
         "form",
         {
             "title": "Rescue your supply run",
             "fields": [
-                {
-                    "name": "notebooks",
-                    "kind": "number",
-                    "label": "A5 notebooks (0 if not needed)",
-                    "required": True,
-                },
-                {
-                    "name": "pens",
-                    "kind": "number",
-                    "label": "Ballpoint pens (0 if not needed)",
-                    "required": True,
-                },
-                {
-                    "name": "lanyards",
-                    "kind": "number",
-                    "label": "Event lanyards (0 if not needed)",
-                    "required": True,
-                },
+                *[
+                    {
+                        "name": p + "s",
+                        "kind": "number",
+                        "label": p.title() + " quantity (0 if not needed)",
+                        "required": False,
+                    }
+                    for p in PRODUCTS
+                ],
                 {
                     "name": "budget_rupees",
                     "kind": "number",
@@ -84,6 +79,15 @@ def options_card(quote, preamble=""):
                     type="text",
                     text=preamble
                     + " No complete plan meets your stock, budget and deadline constraints. No items were reserved. "
+                    + next(
+                        (
+                            e["message"]
+                            for e in reversed(quote.get("events", []))
+                            if e["kind"] == "unavailable"
+                        ),
+                        "",
+                    )
+                    + " "
                     "Send a revised request, or say 'start' for a new form.",
                 )
             ]
@@ -161,7 +165,7 @@ def receipt_message(order):
                     f"Order {order['id']}: {order['status']}.\n{details}\nTotal: {money(payload['total_paise'])}. "
                     f"Estimated fulfilment: {payload['eta_hours']} hours.\nReservation IDs: {reservations}.\n"
                     "This is demo inventory; no real purchase or payment has occurred. "
-                    f"To release inventory, send: cancel {order['id']}. Say 'orders' to check status."
+                    f"To release inventory, send: cancel {order['id']}. Send track {order['id']} for shipment updates. Say 'orders' to check status."
                 ),
             )
         ]

@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-Product = Literal["notebook", "pen", "lanyard"]
+Product = Literal["notebook", "pen", "lanyard", "marker", "folder", "badge"]
 
 
 class LineItem(BaseModel):
@@ -11,9 +11,9 @@ class LineItem(BaseModel):
 
 
 class Requirements(BaseModel):
-    items: list[LineItem] = Field(min_length=1, max_length=3)
+    items: list[LineItem] = Field(min_length=1, max_length=6)
     budget_paise: int = Field(ge=100, le=10_000_000)
-    deadline_hours: int = Field(ge=1, le=168)
+    deadline_hours: float = Field(gt=0, le=168)
     location: str = Field(default="Bengaluru campus", min_length=2, max_length=120)
     title: str = Field(default="Workshop supplies", min_length=1, max_length=100)
 
@@ -42,3 +42,8 @@ class StockUpdate(BaseModel):
 
 class AvailabilityUpdate(BaseModel):
     active: bool
+
+
+class TrackingUpdate(BaseModel):
+    status: Literal["packing", "dispatched", "delivered"]
+    note: str = Field(default="", max_length=300)

@@ -1,4 +1,4 @@
-"""One process, four distinct uAgent identities, shared transactional inventory authority."""
+"""One process, seven distinct uAgent identities, shared transactional inventory authority."""
 
 import asyncio
 import hashlib

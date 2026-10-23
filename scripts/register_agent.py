@@ -25,12 +25,13 @@ def main():
         credentials=RegistrationRequestCredentials(
             agentverse_api_key=settings.agentverse_api_key, agent_seed_phrase=settings.agent_seed
         ),
-        description="Recover from campus stationery shortages: source, compare, approve, reserve demo inventory and get a receipt in ASI:One.",
+        description="Source workshop, conference, classroom and onboarding supplies with six demo vendors. Compare, reserve, recover and track fulfilment in ASI:One.",
         readme=Path("agents/README.md").read_text(),
         starter_prompts=[
             "Find 60 notebooks and 60 pens under INR 4500 within 24 hours.",
             "start",
-            "orders",
+            "catalogue",
+            "track my latest order",
         ],
         metadata={
             "is_public": "True",

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
+import { PRODUCTS, PRODUCT_LABELS } from "./types";
 import { api } from "./api";
 import { Modal, Notice } from "./components";
 import type { Config, Product, Quote, Requirements } from "./types";
@@ -63,6 +64,38 @@ export default function RequestForm({
           Tell us what you need. We’ll find a complete plan that fits your
           budget and deadline.
         </p>
+        <div className="scenario-buttons" aria-label="Example use cases">
+          {[
+            [
+              "Workshop",
+              "60 notebooks and 60 pens under INR 4500 within 24 hours",
+            ],
+            [
+              "Conference",
+              "50 badges, 50 lanyards and 50 folders under INR 5000 within 12 hours",
+            ],
+            [
+              "Classroom",
+              "10 markers and 30 notebooks under INR 2500 within 8 hours",
+            ],
+            [
+              "Onboarding",
+              "20 folders, 20 notebooks and 20 pens under INR 2500 within 24 hours",
+            ],
+          ].map(([label, value]) => (
+            <button
+              className="button secondary small"
+              key={label}
+              type="button"
+              onClick={() => {
+                setPrompt(value);
+                setParsed(false);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="intent-box">
           <label htmlFor="intent">
             <Sparkles size={16} />
@@ -135,21 +168,15 @@ export default function RequestForm({
                     })
                   }
                 >
-                  {(["notebook", "pen", "lanyard"] as Product[])
-                    .filter(
-                      (p) =>
-                        p === item.product ||
-                        !requirements.items.some((i) => i.product === p),
-                    )
-                    .map((p) => (
-                      <option key={p} value={p}>
-                        {p === "notebook"
-                          ? "A5 notebooks"
-                          : p === "pen"
-                            ? "Ballpoint pens"
-                            : "Event lanyards"}
-                      </option>
-                    ))}
+                  {PRODUCTS.filter(
+                    (p) =>
+                      p === item.product ||
+                      !requirements.items.some((i) => i.product === p),
+                  ).map((p) => (
+                    <option key={p} value={p}>
+                      {PRODUCT_LABELS[p]}
+                    </option>
+                  ))}
                 </select>
                 <div className="quantity">
                   <input
@@ -189,7 +216,7 @@ export default function RequestForm({
               </div>
             ))}
           </div>
-          {requirements.items.length < 3 && (
+          {requirements.items.length < PRODUCTS.length && (
             <button
               className="text-button"
               type="button"
@@ -199,9 +226,7 @@ export default function RequestForm({
                   items: [
                     ...requirements.items,
                     {
-                      product: (
-                        ["notebook", "pen", "lanyard"] as Product[]
-                      ).find(
+                      product: PRODUCTS.find(
                         (p) => !requirements.items.some((i) => i.product === p),
                       )!,
                       quantity: 30,
@@ -235,7 +260,8 @@ export default function RequestForm({
               <input
                 required
                 type="number"
-                min="1"
+                min="0.01"
+                step="any"
                 max="168"
                 value={requirements.deadline_hours}
                 onChange={(e) =>

@@ -69,6 +69,23 @@ backup; do not silently edit existing columns and expect initialization to migra
 5. Add payment only with server-side settlement verification, amount/currency/recipient
    binding, replay prevention and explicit refund handling. `CancelPayment` is not a refund.
 
-Current allocation enumerates subsets of three suppliers. It is intentionally bounded;
+Current allocation enumerates subsets of six suppliers. It is intentionally bounded;
 large catalogues require a different optimisation algorithm, not an unbounded extension
 of the same subset enumeration.
+
+## Conversation and fulfilment extension
+
+`conversation_history` and `shipment_updates` are additive SQLite tables. Existing
+orders, quotes and reservations retain their schema and identity. Initialization is
+idempotent and seeds only absent supplier/product rows. The upgrade does not reset stock.
+Back up SQLite with its backup API before restarting an older deployment. Do not roll
+back to a version without tracking guards after dispatching shipments: old cancellation
+logic would release dispatched stock. Restore the matching pre-upgrade snapshot for a
+rollback, only after stopping writers and retaining later records for reconciliation.
+
+Conversation history is keyed by the existing sender/session owner, bounded to 12
+messages and ignored after 24 hours; `start` replaces it with an empty history. Agent
+tracking verifies this owner; operations routes use the existing operator authorization.
+Operator updates are sequential and duplicate stages are idempotent. Cancel and advance
+share SQLite's write lock, so dispatch cannot race cancellation into an invalid state.
+Tracking is reported per supplier and never invents progress based on elapsed time.

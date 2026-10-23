@@ -23,7 +23,7 @@ plus auditable recovery and cancellation. This is not a real merchant purchase.
 | Agent Chat Protocol | Official `chat_protocol_spec`, acknowledgements, native messages |
 | ASI:One core reasoning | Live API intent extraction with schema validation |
 | Meaningful execution | Atomic inventory reservation, release and receipts |
-| Multi-agent collaboration | Coordinator requests snapshots from three distinct uAgents |
+| Multi-agent collaboration | Coordinator requests snapshots from six distinct uAgents |
 | Complete workflow inside ASI:One | Form → carousel → review → receipt; status and cancellation |
 | Interactive Cards | Native form, carousel and review metadata payloads |
 | Reliability | Expiry, stale-stock recovery, duplicate prevention, ownership tests |
@@ -47,7 +47,7 @@ conversation containing credentials; record a separate clean product demonstrati
 cancelled. We need 60 notebooks and 60 pens under INR 4,500.”
 
 **0:25–1:10 — Intent and collaboration.** Send the request in ASI:One. Explain that the
-coordinator asks three supplier agents for inventory and uses deterministic constraints
+coordinator asks six supplier agents for inventory and uses deterministic constraints
 to compute plans. Show the native option carousel.
 
 **1:10–1:45 — Review.** Select the best-value plan. Show quantities, supplier split,

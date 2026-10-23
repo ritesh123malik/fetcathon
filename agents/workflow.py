@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from uagents_core.contrib.protocols.chat import ChatMessage, TextContent
 
 from agents.cards import options_card, receipt_message, request_form, review_card
+from backend.catalogue import PRODUCTS, SCENARIOS
 from backend.config import Settings
 from backend.intent import extract_intent
 from backend.models import Requirements
@@ -62,7 +63,56 @@ class ChatWorkflow:
 
     async def _handle(self, text, owner, get_suppliers):
         if not text.strip() or text.strip().lower() in {"start", "hi", "hello", "help"}:
+            self.service.conversation(owner, [])
             return request_form()
+        if text.strip().lower() in {"catalogue", "catalog", "use cases", "examples"}:
+            suppliers = await get_suppliers()
+            lines = [
+                f"{s['name']} · {s['eta_hours']}h · "
+                + ", ".join(
+                    f"{i['product']} {i['stock']} available @ INR {i['unit_paise'] / 100:.2f}"
+                    for i in s["inventory"]
+                )
+                for s in suppliers
+                if s["active"]
+            ]
+            return ChatMessage(
+                content=[
+                    TextContent(
+                        type="text",
+                        text="Demo supplier catalogue (no real merchants):\n"
+                        + "\n".join(lines)
+                        + "\nExamples:\n"
+                        + "\n".join(SCENARIOS.values()),
+                    )
+                ]
+            )
+        tracking_id = re.search(r"\bSR-[A-F0-9]{8}\b", text, re.I)
+        if re.search(r"\b(track|tracking|where)\b", text, re.I):
+            orders = self.service.orders(owner)
+            if not tracking_id and not orders:
+                raise DomainError("No orders in this conversation to track yet.")
+            report = self.service.tracking(
+                tracking_id.group().upper() if tracking_id else orders[0]["id"], owner
+            )
+            lines = [
+                f"{s['supplier_name']}: {s['status']} · estimated delivery {s['estimated_delivery']}"
+                + (" · ETA overdue; operator update needed" if s["overdue"] else "")
+                + "\n"
+                + "\n".join(
+                    f"  {h['created_at']}: {h['status']} — {h['note']}" for h in s["history"]
+                )
+                for s in report["shipments"]
+            ]
+            return ChatMessage(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=f"Tracking {report['order_id']} · {report['status']}\nDemo operator-reported fulfilment; not live courier GPS.\n"
+                        + "\n".join(lines),
+                    )
+                ]
+            )
         if text.strip().lower() in {"orders", "status"}:
             orders = self.service.orders(owner)
             if orders:
@@ -106,13 +156,9 @@ class ChatWorkflow:
         if kind == "source":
             requirements = Requirements(
                 items=[
-                    {"product": p, "quantity": int(action.get(field, 0))}
-                    for p, field in [
-                        ("notebook", "notebooks"),
-                        ("pen", "pens"),
-                        ("lanyard", "lanyards"),
-                    ]
-                    if int(action.get(field, 0)) > 0
+                    {"product": p, "quantity": int(action.get(field) or 0)}
+                    for p, field in [(p, p + "s") for p in PRODUCTS]
+                    if int(action.get(field) or 0) > 0
                 ],
                 budget_paise=int(Decimal(str(action["budget_rupees"])) * 100),
                 deadline_hours=action["deadline_hours"],
@@ -120,12 +166,24 @@ class ChatWorkflow:
             )
         else:
             # Prose source submissions are interpreted by ASI:One then schema-validated.
-            requirements, _ = await extract_intent(text, self.config)
+            history = self.service.conversation(owner)
+            turns = [*history, {"role": "user", "content": text[:4000]}]
+            self.service.conversation(owner, turns)
+            try:
+                requirements, _ = await extract_intent(text, self.config, history)
+            except DomainError as exc:
+                self.service.conversation(
+                    owner, [*turns, {"role": "assistant", "content": exc.message}]
+                )
+                raise
         suppliers = await get_suppliers()
         if not suppliers:
             raise DomainError(
                 "Supplier agents did not respond. No order was placed. Please retry shortly."
             )
         quote = self.service.quote(requirements, owner, snapshots=suppliers)
+        self.service.conversation(
+            owner, [{"role": "user", "content": json.dumps(requirements.model_dump())}]
+        )
         self.service.session_quote(owner, quote["id"])
         return options_card(quote)

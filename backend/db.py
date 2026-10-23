@@ -3,6 +3,15 @@ from contextlib import contextmanager
 from pathlib import Path
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS conversation_history (
+ owner TEXT PRIMARY KEY, messages TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS shipment_updates (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL REFERENCES orders(id),
+ supplier_id TEXT NOT NULL REFERENCES suppliers(id), status TEXT NOT NULL,
+ note TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shipment_order ON shipment_updates(order_id);
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
 INSERT OR IGNORE INTO schema_version VALUES (1);
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -38,6 +47,9 @@ SUPPLIERS = [
     ("campus", "Campus Paper Co.", "Yelahanka", 4, 1, "violet", "CP"),
     ("metro", "Metro Office Supply", "Hebbal", 6, 1, "blue", "MO"),
     ("express", "QuickKit Express", "Bengaluru North", 2, 1, "orange", "QK"),
+    ("event", "Event Essentials", "Yelahanka", 3, 1, "violet", "EE"),
+    ("classroom", "Classroom Depot", "Hebbal", 5, 1, "blue", "CD"),
+    ("office", "Office Starter Kits", "Bengaluru North", 8, 1, "orange", "OS"),
 ]
 INVENTORY = [
     ("campus", "notebook", 40, 3500),
@@ -49,6 +61,16 @@ INVENTORY = [
     ("express", "notebook", 100, 5500),
     ("express", "pen", 120, 1200),
     ("express", "lanyard", 100, 2800),
+    ("event", "badge", 300, 1200),
+    ("event", "folder", 100, 2500),
+    ("event", "lanyard", 200, 2400),
+    ("classroom", "marker", 100, 3000),
+    ("classroom", "notebook", 200, 4500),
+    ("classroom", "pen", 300, 1100),
+    ("office", "folder", 200, 2000),
+    ("office", "badge", 200, 1500),
+    ("office", "marker", 150, 3500),
+    ("office", "notebook", 150, 4800),
 ]
 
 

@@ -1,3 +1,4 @@
+import { PRODUCT_LABELS } from "./types";
 import { useState } from "react";
 import { Clock3, MapPin, Save } from "lucide-react";
 import { api, money } from "./api";
@@ -81,13 +82,7 @@ export default function Suppliers({
               </div>
               {s.inventory.map((item) => (
                 <div className="inventory-row" key={item.product}>
-                  <strong>
-                    {item.product === "notebook"
-                      ? "A5 notebook"
-                      : item.product === "pen"
-                        ? "Ballpoint pen"
-                        : "Event lanyard"}
-                  </strong>
+                  <strong>{PRODUCT_LABELS[item.product]}</strong>
                   <span>{money(item.unit_paise)}</span>
                   {editing === `${s.id}-${item.product}` ? (
                     <form

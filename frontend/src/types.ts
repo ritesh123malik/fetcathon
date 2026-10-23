@@ -1,4 +1,5 @@
-export type Product = "notebook" | "pen" | "lanyard";
+export type Product =
+  "notebook" | "pen" | "lanyard" | "marker" | "folder" | "badge";
 export interface Requirements {
   items: { product: Product; quantity: number }[];
   budget_paise: number;
@@ -76,3 +77,20 @@ export interface Config {
 export type ConfirmResult =
   | { status: "confirmed"; order: Order; replayed: boolean }
   | { status: "reapproval_required"; reason: string; quote: Quote };
+
+export const PRODUCTS: Product[] = [
+  "notebook",
+  "pen",
+  "lanyard",
+  "marker",
+  "folder",
+  "badge",
+];
+export const PRODUCT_LABELS: Record<Product, string> = {
+  notebook: "A5 notebook",
+  pen: "Ballpoint pen",
+  lanyard: "Event lanyard",
+  marker: "Whiteboard marker",
+  folder: "Document folder",
+  badge: "Event badge",
+};

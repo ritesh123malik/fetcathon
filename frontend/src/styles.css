@@ -2184,3 +2184,33 @@ select,
     scroll-behavior: auto !important;
   }
 }
+
+.scenario-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+.tracking-shipment {
+  padding: 20px;
+  margin: 16px 0;
+}
+.tracking-stages {
+  display: flex;
+  flex-wrap: wrap;
+  list-style: none;
+  gap: 8px;
+  padding: 0;
+  margin: 20px 0;
+}
+.tracking-stages li {
+  padding: 8px 12px;
+  border-radius: 20px;
+  background: #efefeb;
+  color: #656861;
+  text-transform: capitalize;
+}
+.tracking-stages li.complete {
+  background: #ddefcc;
+  color: #234c30;
+}

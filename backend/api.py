@@ -15,6 +15,7 @@ from backend.models import (
     ConfirmRequest,
     QuoteRequest,
     StockUpdate,
+    TrackingUpdate,
 )
 from backend.service import DomainError, SupplyService
 
@@ -82,6 +83,22 @@ def create_app(config: Settings = settings):
     @app.post("/api/orders/{order_id}/cancel")
     def cancel(order_id: str, owner=Depends(authorize)):
         return service.cancel_order(order_id, service.operator_owner(order_id, order=True))
+
+    @app.get("/api/orders/{order_id}/tracking")
+    def tracking(order_id: str, owner=Depends(authorize)):
+        return service.tracking(order_id, service.operator_owner(order_id, order=True))
+
+    @app.post("/api/orders/{order_id}/shipments/{supplier_id}")
+    def advance(order_id: str, supplier_id: str, body: TrackingUpdate, owner=Depends(authorize)):
+        if not config.demo_mode:
+            raise DomainError("Demo fulfilment controls are disabled.", 403)
+        return service.advance_shipment(
+            order_id,
+            service.operator_owner(order_id, order=True),
+            supplier_id,
+            body.status,
+            body.note,
+        )
 
     @app.patch("/api/suppliers/{supplier_id}/availability")
     def availability(supplier_id: str, body: AvailabilityUpdate, owner=Depends(authorize)):

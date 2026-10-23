@@ -14,7 +14,7 @@ failure without committing a partial order.
 - **Operations UI:** a responsive React dashboard to create requests, inspect orders,
   update inventory, pause suppliers, and demonstrate failure recovery.
 
-The coordinator exchanges typed uAgent messages with three supplier identities.
+The coordinator exchanges typed uAgent messages with six supplier identities.
 Suppliers return their inventory snapshots; the planner computes feasible allocations.
 ASI:One interprets natural-language requests. Prices, budgets, stock checks, and order
 commits are deterministic Python code.
@@ -43,7 +43,7 @@ cd ..
 uv run uvicorn backend.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open **http://127.0.0.1:8000**. Demo mode seeds three fictitious suppliers exactly once.
+Open **http://127.0.0.1:8000**. Demo mode seeds six fictitious suppliers exactly once.
 Restarting the service preserves orders and inventory. No API key is required for the
 structured form or labelled offline parser. To use real ASI:One intent extraction,
 set `ASI_ONE_API_KEY` in `.env` and restart the process.
@@ -76,6 +76,24 @@ agent endpoint. In ASI:One select the agent from its profile and say:
 Select a plan, review its allocation, and confirm. The receipt appears in the same
 conversation. Use `orders` to inspect status and `cancel SR-XXXXXXXX` to release an order
 owned by that conversation. `start` opens the structured request form.
+
+## Expanded use cases and order tracking
+
+Six demo supplier agents cover workshops, conference registration packs, classroom
+restocking and employee onboarding. The catalogue includes notebooks, pens, lanyards,
+markers, folders and badges. Send `catalogue` in ASI:One for stock, prices and examples.
+The request form has matching example prompts and all six products.
+
+Clarification turns retain request context for up to 24 hours; `start` clears it.
+Minutes convert to fractional hours. Infeasible requests explain alternative budgets
+and deadlines without making commitments on your behalf.
+
+After confirmation, send `track SR-XXXXXXXX` or open **Orders → Track shipments**.
+Each supplier shipment has a reservation reference, estimate, timestamped history and
+reserved/packing/dispatched/delivered progress. The panel refreshes every five seconds.
+An operator uses explicitly labelled demo buttons to report progress; this is not GPS,
+a courier integration or actual delivery. Estimates are flagged overdue, never assumed
+delivered. Once any shipment dispatches, automatic cancellation is blocked.
 
 ## Reproducible recovery demo
 

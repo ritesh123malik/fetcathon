@@ -117,7 +117,7 @@ async def main():
         if errors:
             raise AssertionError(errors)
         assert phases == ["carousel", "review", "receipt"], phases
-        print("PASS: coordinator → three supplier uAgents → carousel → review → confirmed receipt")
+        print("PASS: coordinator → six supplier uAgents → carousel → review → confirmed receipt")
 
 
 if __name__ == "__main__":

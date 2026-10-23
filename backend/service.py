@@ -56,6 +56,23 @@ class SupplyService:
         created = now()
         expiry = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
         status = "quoted" if options else "unavailable"
+        unavailable_reason = "No complete plan fits stock, budget, and deadline."
+        if not options:
+            relaxed = requirements.model_copy(
+                update={"budget_paise": 10_000_000, "deadline_hours": 168}
+            )
+            alternatives = build_options(relaxed, suppliers)
+            if alternatives:
+                cheapest = min(alternatives, key=lambda plan: plan["total_paise"])
+                fastest = min(alternatives, key=lambda plan: plan["eta_hours"])
+                unavailable_reason += (
+                    f" With relaxed constraints, the lowest-cost plan is INR {cheapest['total_paise'] / 100:.2f} "
+                    f"within {cheapest['eta_hours']} hours; the fastest plan is {fastest['eta_hours']} hours "
+                    f"at INR {fastest['total_paise'] / 100:.2f}. Tell me which budget or deadline you can change. "
+                    "These are suggestions, not reservations; revised terms require your approval."
+                )
+            else:
+                unavailable_reason += " Active suppliers lack sufficient stock for the complete basket. Try fewer items or ask the operator to replenish stock."
         conn.execute(
             "INSERT INTO quotes VALUES (?,?,?,?,?,?,?,?)",
             (
@@ -80,9 +97,7 @@ class SupplyService:
             conn,
             quote_id,
             status,
-            f"{len(options)} feasible fulfilment plan(s)."
-            if options
-            else "No complete plan fits stock, budget, and deadline. Change your constraints and try again.",
+            f"{len(options)} feasible fulfilment plan(s)." if options else unavailable_reason,
         )
         return self.get_quote(quote_id, owner, conn)
 
@@ -222,6 +237,15 @@ class SupplyService:
             if row is None:
                 raise DomainError("Order not found.", 404)
             if row["status"] != "cancelled":
+                dispatched = conn.execute(
+                    "SELECT 1 FROM shipment_updates WHERE order_id=? AND status IN ('dispatched','delivered')",
+                    (order_id,),
+                ).fetchone()
+                if dispatched:
+                    raise DomainError(
+                        "This order has dispatched shipments. Automatic cancellation is unavailable; contact the operator.",
+                        409,
+                    )
                 for line in json.loads(row["payload"])["lines"]:
                     conn.execute(
                         "UPDATE inventory SET stock=stock+? WHERE supplier_id=? AND product=?",
@@ -319,3 +343,122 @@ class SupplyService:
                 "SELECT quote_id FROM chat_sessions WHERE id=?", (session,)
             ).fetchone()
             return row["quote_id"] if row else None
+
+    def conversation(self, owner, messages=None):
+        with self.db.transaction() as conn:
+            if messages is not None:
+                conn.execute(
+                    "INSERT INTO conversation_history VALUES (?,?,?) "
+                    "ON CONFLICT(owner) DO UPDATE SET messages=excluded.messages, updated_at=excluded.updated_at",
+                    (owner, json.dumps(messages[-12:]), now()),
+                )
+            row = conn.execute(
+                "SELECT * FROM conversation_history WHERE owner=?", (owner,)
+            ).fetchone()
+            if not row or datetime.fromisoformat(row["updated_at"]) < datetime.now(
+                timezone.utc
+            ) - timedelta(hours=24):
+                return []
+            return json.loads(row["messages"])
+
+    def tracking(self, order_id, owner, conn=None):
+        if conn is None:
+            with self.db.connection() as connection:
+                return self.tracking(order_id, owner, connection)
+        row = conn.execute(
+            "SELECT * FROM orders WHERE id=? AND owner=?", (order_id, owner)
+        ).fetchone()
+        if row is None:
+            raise DomainError("Order not found.", 404)
+        order = self.order_dict(row)
+        updates = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT * FROM shipment_updates WHERE order_id=? ORDER BY id", (order_id,)
+            )
+        ]
+        shipments = []
+        for reservation in order["payload"]["reservations"]:
+            supplier = reservation["supplier_id"]
+            lines = [line for line in order["payload"]["lines"] if line["supplier_id"] == supplier]
+            history = [u for u in updates if u["supplier_id"] == supplier]
+            status = (
+                "cancelled"
+                if order["status"] == "cancelled"
+                else history[-1]["status"]
+                if history
+                else "reserved"
+            )
+            estimated = datetime.fromisoformat(order["created_at"]) + timedelta(
+                hours=max(line["eta_hours"] for line in lines)
+            )
+            shipments.append(
+                {
+                    "supplier_id": supplier,
+                    "supplier_name": lines[0]["supplier_name"],
+                    "reservation_id": reservation["id"],
+                    "status": status,
+                    "lines": lines,
+                    "estimated_delivery": estimated.isoformat(),
+                    "overdue": status not in {"delivered", "cancelled"}
+                    and estimated < datetime.now(timezone.utc),
+                    "history": [
+                        {
+                            "status": "reserved",
+                            "note": "Demo inventory reserved",
+                            "created_at": order["created_at"],
+                        },
+                        *history,
+                    ],
+                }
+            )
+        return {
+            "order_id": order_id,
+            "demo": True,
+            "location": order["payload"]["location"],
+            "shipments": shipments,
+            "updated_at": now(),
+            "status": "cancelled"
+            if order["status"] == "cancelled"
+            else "delivered"
+            if all(s["status"] == "delivered" for s in shipments)
+            else "in_progress",
+        }
+
+    def advance_shipment(self, order_id, owner, supplier_id, status, note=""):
+        stages = ["reserved", "packing", "dispatched", "delivered"]
+        with self.db.transaction() as conn:
+            tracking = self.tracking(order_id, owner, conn)
+            shipment = next(
+                (s for s in tracking["shipments"] if s["supplier_id"] == supplier_id), None
+            )
+            if not shipment:
+                raise DomainError("Shipment not found.", 404)
+            if tracking["status"] == "cancelled":
+                raise DomainError("Cancelled orders cannot progress.", 409)
+            if status == shipment["status"]:
+                return tracking
+            if status not in stages or stages.index(status) != stages.index(shipment["status"]) + 1:
+                raise DomainError(
+                    "Advance one stage at a time: packing, dispatched, delivered.", 409
+                )
+            conn.execute(
+                "INSERT INTO shipment_updates(order_id,supplier_id,status,note,created_at) VALUES (?,?,?,?,?)",
+                (
+                    order_id,
+                    supplier_id,
+                    status,
+                    note or "Demo operator update (not courier GPS)",
+                    now(),
+                ),
+            )
+            quote_id = conn.execute(
+                "SELECT quote_id FROM orders WHERE id=?", (order_id,)
+            ).fetchone()[0]
+            self.event(
+                conn,
+                quote_id,
+                "tracking",
+                f"{shipment['supplier_name']}: {status} (demo operator update).",
+            )
+            return self.tracking(order_id, owner, conn)

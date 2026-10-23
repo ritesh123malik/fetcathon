@@ -27,6 +27,7 @@ import { api, money, time } from "./api";
 import { Empty, Modal, Notice, Sidebar, Status, type Page } from "./components";
 import RequestForm from "./RequestForm";
 import QuoteReview, { Receipt } from "./QuoteReview";
+import OrderTracking from "./OrderTracking";
 import Suppliers from "./Suppliers";
 import type { Config, Dashboard, Order, Quote } from "./types";
 
@@ -44,6 +45,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [newRequest, setNewRequest] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [tracking, setTracking] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Order | null>(null);
   const [cancel, setCancel] = useState<Order | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -73,6 +75,7 @@ export default function App() {
       })
       .catch((e) => setError(e.message));
   }, [refresh]);
+  const closeTracking = useCallback(() => setTracking(null), []);
   const closeNew = useCallback(() => setNewRequest(false), []);
   const closeQuote = useCallback(() => setQuote(null), []);
   const closeReceipt = useCallback(() => setReceipt(null), []);
@@ -575,6 +578,12 @@ export default function App() {
                         </div>
                         <div className="order-footer">
                           <button
+                            className="button primary small"
+                            onClick={() => setTracking(o.id)}
+                          >
+                            <Truck size={14} /> Track shipments
+                          </button>
+                          <button
                             className="button secondary small"
                             onClick={() => setReceipt(o)}
                           >
@@ -654,6 +663,13 @@ export default function App() {
             <Receipt order={receipt} />
           </div>
         </Modal>
+      )}
+      {tracking && (
+        <OrderTracking
+          orderId={tracking}
+          demo={!!config?.demo_mode}
+          onClose={closeTracking}
+        />
       )}
       {cancel && (
         <Modal title="Release this order?" onClose={closeCancel}>
