@@ -53,6 +53,12 @@ proxies `/api` to the Python service. Open the Vite URL printed in its terminal.
 
 ## Run the ASI:One agent network
 
+For the configured laptop demo, after building the frontend and setting up `.env`,
+run `make demo` to start both the local dashboard and the agent network. On macOS,
+use `caffeinate -i make demo` to prevent idle sleep while it runs. Keep the laptop
+plugged in, its lid open and internet connected. Stop with Ctrl+C. See the
+[laptop demo guide](docs/DEPLOYMENT.md#laptop--mailbox-demo-no-cloud-hosting-fee).
+
 Set a strong, stable `AGENT_SEED` and your `AGENTVERSE_API_KEY` in `.env`. For a new
 installation generate your own seed; never reuse the published agent's identity.
 

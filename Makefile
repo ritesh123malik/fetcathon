@@ -1,4 +1,4 @@
-.PHONY: install dev api agents web build test lint serve
+.PHONY: install dev api agents web build test lint serve demo
 install:
 	uv sync --python 3.11
 	cd frontend && npm ci
@@ -16,3 +16,5 @@ lint:
 	uv run ruff check backend agents scripts tests
 serve:
 	uv run python -m scripts.serve
+demo:
+	HOST=127.0.0.1 RUN_AGENTS=true AGENT_MAILBOX=true uv run python -m scripts.serve

@@ -32,7 +32,7 @@ plus auditable recovery and cancellation. This is not a real merchant purchase.
 
 ## Still required before final submission
 
-- Verify the deployed worker stays online on Render.
+- Keep the selected laptop + Mailbox worker online throughout judging (see deployment guide).
 - Verify discovery and every card round trip in the real ASI:One UI.
 - Create and submit the **public ASI:One Shared Chat URL**.
 - Record and submit the **3–5 minute demo video**.

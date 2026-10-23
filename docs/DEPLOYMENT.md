@@ -1,5 +1,34 @@
 # Deployment
 
+## Laptop + Mailbox demo (no cloud hosting fee)
+
+This is the selected hackathon setup. Code and SQLite data stay on your laptop;
+the registered coordinator retrieves messages from Agentverse Mailbox. No Render
+service or public inbound tunnel is required. ASI:One usage and Agentverse plan
+limits still apply.
+
+From the repository root, using the existing private `.env`:
+
+```bash
+make build
+# macOS: prevent idle sleep while the demo runs
+caffeinate -i make demo
+# Other platforms: make demo (disable idle sleep yourself)
+```
+
+Open http://127.0.0.1:8000 for operations. The dashboard binds to loopback only.
+Use the Agentverse profile linked in the README to open the primary ASI:One flow.
+Keep the terminal running, the Mac plugged in, the lid open and internet connected.
+`caffeinate` prevents idle sleep; it does not guarantee operation with the lid closed.
+Ctrl+C stops the server and agents. Run the same command to restart; existing orders
+and inventory remain in `data/supplyrescue.sqlite3`. Do not delete the data directory
+or change `AGENT_SEED` between runs. Do not run another worker with the same seed.
+
+Before judging, run `uv run python -m scripts.check_connections`, verify a complete
+request/review/confirm/status/cancel flow in ASI:One, then create its public shared
+chat and record the required video. Local tests do not establish ASI:One UI support.
+This setup is available only while the laptop worker is running, not 24/7 hosting.
+
 ## Local preview
 
 Build the frontend, then run `uv run python -m scripts.serve`. It serves the React build

@@ -19,7 +19,7 @@ def main():
             "uvicorn",
             "backend.api:app",
             "--host",
-            "0.0.0.0",
+            os.getenv("HOST", "0.0.0.0"),
             "--port",
             os.getenv("PORT", "8000"),
         ]
