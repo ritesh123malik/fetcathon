@@ -14,6 +14,21 @@ from backend.models import Requirements
 from backend.service import DomainError, SupplyService
 
 
+def normalize_message(text: str) -> str:
+    """Remove routing mentions, not command arguments or card JSON."""
+    text = re.sub(r"^\s*(?:@agent1[a-z0-9]+[\s,:;]*)+", "", text, flags=re.I)
+    text = re.sub(r"^\s*@SupplyRescue Campus Recovery[\s,:;]*", "", text, flags=re.I)
+    return text.strip()
+
+
+def read_command(text: str) -> str:
+    # Exact allowlisted read commands; never infer confirmations or cancellations.
+    command = text.lower().strip().rstrip(".!?")
+    command = re.sub(r"^(?:please\s+)?(?:show(?:\s+me)?|list|view|open)\s+", "", command)
+    command = re.sub(r"^(?:the|your|my)\s+", "", command)
+    return command.removesuffix(" please").strip()
+
+
 def parse_action(text):
     try:
         result = json.loads(text)
@@ -52,7 +67,7 @@ class ChatWorkflow:
         self, text: str, owner: str, get_suppliers: Callable[[], Awaitable[list[dict]]]
     ):
         try:
-            return await self._handle(text, owner, get_suppliers)
+            return await self._handle(normalize_message(text), owner, get_suppliers)
         except (DomainError, ValidationError, ValueError, TypeError, KeyError) as exc:
             message = (
                 exc.message
@@ -62,10 +77,19 @@ class ChatWorkflow:
             return ChatMessage(content=[TextContent(type="text", text=message)])
 
     async def _handle(self, text, owner, get_suppliers):
-        if not text.strip() or text.strip().lower() in {"start", "hi", "hello", "help"}:
+        command = read_command(text)
+        if not text.strip() or command in {"start", "hi", "hello", "help"}:
             self.service.conversation(owner, [])
             return request_form()
-        if text.strip().lower() in {"catalogue", "catalog", "use cases", "examples"}:
+        if command in {
+            "catalogue",
+            "catalog",
+            "use cases",
+            "examples",
+            "suppliers",
+            "vendors",
+            "products",
+        }:
             suppliers = await get_suppliers()
             lines = [
                 f"{s['name']} · {s['eta_hours']}h · "
@@ -113,7 +137,7 @@ class ChatWorkflow:
                     )
                 ]
             )
-        if text.strip().lower() in {"orders", "status"}:
+        if command in {"orders", "status"}:
             orders = self.service.orders(owner)
             if orders:
                 return ChatMessage(

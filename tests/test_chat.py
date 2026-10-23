@@ -49,3 +49,45 @@ def test_missing_agents_does_not_fake_a_quote(service):
     )
     assert "did not respond" in reply.text()
     assert service.dashboard("user")["quotes"] == []
+
+
+def test_mentions_and_read_commands_bypass_llm(service):
+    from unittest.mock import AsyncMock, patch
+
+    address = "@agent1qvftq6nwwq7wpl9wd3g70mtyflktwy73afld2tjmqv0uvynrg0d0jcyfg4t"
+    workflow = ChatWorkflow(service, Settings(_env_file=None))
+
+    async def suppliers():
+        return service.suppliers()
+
+    async def run():
+        with patch("agents.workflow.extract_intent", new_callable=AsyncMock) as llm:
+            for message in [
+                f"{address} catalogue",
+                f"{address}\nPlease show me the catalogue.",
+                "@SupplyRescue Campus Recovery catalogue",
+                "show vendors",
+            ]:
+                response = await workflow.handle(message, "user", suppliers)
+                assert "Demo supplier catalogue" in response.text()
+                assert "Event Essentials" in response.text()
+            response = await workflow.handle(f"{address} orders", "user", suppliers)
+            assert "No orders" in response.text()
+            response = await workflow.handle(f"{address} start", "user", suppliers)
+            assert metadata(response)["card_kind"] == "form"
+            llm.assert_not_awaited()
+
+    asyncio.run(run())
+
+
+def test_normalization_preserves_transaction_intent():
+    from agents.workflow import normalize_message
+
+    payload = '{"action":"confirm","quote_id":"RQ-0123456789","option_id":"option-1"}'
+    assert normalize_message(payload) == payload
+    assert (
+        parse_action(normalize_message("@agent1abcdef Do not confirm RQ-0123456789 option-1"))[
+            "action"
+        ]
+        is None
+    )
