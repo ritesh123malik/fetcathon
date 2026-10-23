@@ -33,3 +33,19 @@ def test_operator_sees_chat_orders_but_requires_auth(tmp_path, requirements):
             ).status_code
             == 409
         )
+
+
+def test_dashboard_shipment_summary_respects_dispatch_and_cancellation(service, requirements):
+    quote = service.quote(requirements, "alice")
+    order = service.confirm(quote["id"], "option-1", "alice")["order"]
+    dashboard_order = service.dashboard("operations", operator=True)["orders"][0]
+    assert dashboard_order["can_cancel"] is True
+    assert dashboard_order["fulfilment_status"] == "in_progress"
+    assert len(dashboard_order["shipments"]) == order["payload"]["supplier_count"]
+    supplier = order["payload"]["reservations"][0]["supplier_id"]
+    service.advance_shipment(order["id"], "alice", supplier, "packing")
+    service.advance_shipment(order["id"], "alice", supplier, "dispatched")
+    dashboard_order = service.dashboard("operations", operator=True)["orders"][0]
+    assert dashboard_order["can_cancel"] is False
+    assert any(s["status"] == "dispatched" for s in dashboard_order["shipments"])
+    assert service.dashboard("other")["orders"] == []

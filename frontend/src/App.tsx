@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowRight,
@@ -7,7 +7,6 @@ import {
   Check,
   ChevronRight,
   Clock3,
-  Download,
   ExternalLink,
   LoaderCircle,
   MapPin,
@@ -19,7 +18,6 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingUp,
-  Truck,
   Users,
   Zap,
 } from "lucide-react";
@@ -28,6 +26,8 @@ import { Empty, Modal, Notice, Sidebar, Status, type Page } from "./components";
 import RequestForm from "./RequestForm";
 import QuoteReview, { Receipt } from "./QuoteReview";
 import OrderTracking from "./OrderTracking";
+import Orders from "./Orders";
+import OperationsOverview from "./OperationsOverview";
 import Suppliers from "./Suppliers";
 import type { Config, Dashboard, Order, Quote } from "./types";
 
@@ -52,16 +52,24 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [key, setKey] = useState("");
   const [needsAuth, setNeedsAuth] = useState(false);
+  const refreshLock = useRef(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [requestFilter, setRequestFilter] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
   const refresh = useCallback(async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
     setRefreshing(true);
     try {
       setData(await api<Dashboard>("/dashboard"));
+      setLastUpdated(new Date());
       setError("");
       setNeedsAuth(false);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      refreshLock.current = false;
       setRefreshing(false);
     }
   }, []);
@@ -75,15 +83,33 @@ export default function App() {
       })
       .catch((e) => setError(e.message));
   }, [refresh]);
-  const closeTracking = useCallback(() => setTracking(null), []);
+  useEffect(() => {
+    if (!autoRefresh || !config || needsAuth) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [autoRefresh, config, needsAuth, refresh]);
+  const requestStatus = (q: Quote) =>
+    q.status === "quoted" && new Date(q.expires_at).getTime() <= Date.now()
+      ? "expired"
+      : q.status;
+  const closeTracking = useCallback(() => {
+    setTracking(null);
+    void refresh();
+  }, [refresh]);
   const closeNew = useCallback(() => setNewRequest(false), []);
   const closeQuote = useCallback(() => setQuote(null), []);
   const closeReceipt = useCallback(() => setReceipt(null), []);
   const closeCancel = useCallback(() => setCancel(null), []);
-  const quotes = (data?.quotes || []).filter((q) =>
-    `${q.id} ${q.requirements.title}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
+  const quotes = (data?.quotes || []).filter(
+    (q) =>
+      `${q.id} ${q.requirements.title} ${q.requirements.location} ${q.requirements.items.map((i) => i.product).join(" ")}`
+        .toLowerCase()
+        .includes(search.toLowerCase()) &&
+      (page !== "requests" ||
+        requestFilter === "all" ||
+        requestStatus(q) === requestFilter),
   );
   const activity = (data?.quotes || [])
     .flatMap((q) =>
@@ -140,7 +166,7 @@ export default function App() {
                 </button>
               </td>
               <td>
-                <Status status={q.status} />
+                <Status status={requestStatus(q)} />
               </td>
               <td>{money(q.requirements.budget_paise)}</td>
               <td>
@@ -182,6 +208,19 @@ export default function App() {
             <strong>{pageTitles[page]}</strong>
           </div>
           <div className="topbar-right">
+            <label className="live-refresh">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+              />{" "}
+              Auto refresh
+            </label>
+            <span className="sync-time">
+              {lastUpdated
+                ? `Synced ${lastUpdated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+                : "Connecting…"}
+            </span>
             <span className="environment">
               <i />
               {config?.demo_mode ? "DEMO ENVIRONMENT" : "PRIVATE OPERATIONS"}
@@ -318,8 +357,8 @@ export default function App() {
                   icon={<Radio size={19} />}
                   label="Open rescue requests"
                   value={String(
-                    data?.quotes.filter((q) => q.status === "quoted").length ||
-                      0,
+                    data?.quotes.filter((q) => requestStatus(q) === "quoted")
+                      .length || 0,
                   )}
                   detail="Awaiting your review"
                 />
@@ -342,6 +381,14 @@ export default function App() {
                   detail="No payment collected"
                 />
               </section>
+              {data && (
+                <OperationsOverview
+                  data={data}
+                  onSuppliers={() => setPage("suppliers")}
+                  onOrders={() => setPage("orders")}
+                  onTrack={setTracking}
+                />
+              )}
               <div className="overview-grid">
                 <section className="panel requests-panel">
                   <div className="panel-heading">
@@ -360,6 +407,26 @@ export default function App() {
                     >
                       View all <ArrowRight size={14} />
                     </button>
+                  </div>
+                  <div className="filter-tabs">
+                    {[
+                      "all",
+                      "quoted",
+                      "confirmed",
+                      "unavailable",
+                      "superseded",
+                      "cancelled",
+                      "expired",
+                    ].map((status) => (
+                      <button
+                        key={status}
+                        aria-pressed={requestFilter === status}
+                        onClick={() => setRequestFilter(status)}
+                        className={requestFilter === status ? "selected" : ""}
+                      >
+                        {status === "quoted" ? "Awaiting approval" : status}
+                      </button>
+                    ))}
                   </div>
                   {quotes.length ? (
                     requestsTable(4)
@@ -524,6 +591,26 @@ export default function App() {
                       />
                     </label>
                   </div>
+                  <div className="filter-tabs">
+                    {[
+                      "all",
+                      "quoted",
+                      "confirmed",
+                      "unavailable",
+                      "superseded",
+                      "cancelled",
+                      "expired",
+                    ].map((status) => (
+                      <button
+                        key={status}
+                        aria-pressed={requestFilter === status}
+                        onClick={() => setRequestFilter(status)}
+                        className={requestFilter === status ? "selected" : ""}
+                      >
+                        {status === "quoted" ? "Awaiting approval" : status}
+                      </button>
+                    ))}
+                  </div>
                   {quotes.length ? (
                     requestsTable()
                   ) : (
@@ -541,83 +628,13 @@ export default function App() {
                 />
               )}{" "}
               {page === "orders" && (
-                <div className="orders-list">
-                  {data?.orders.length ? (
-                    data.orders.map((o) => (
-                      <section className="panel order-card" key={o.id}>
-                        <div className="order-heading">
-                          <span className="request-icon">
-                            <Truck size={23} />
-                          </span>
-                          <div>
-                            <h3>{o.payload.title}</h3>
-                            <small>
-                              {o.id} ·{" "}
-                              {new Date(o.created_at).toLocaleDateString(
-                                "en-IN",
-                              )}
-                            </small>
-                          </div>
-                          <Status status={o.status} />
-                        </div>
-                        <div className="order-details">
-                          <div>
-                            <span>Order value</span>
-                            <strong>{money(o.payload.total_paise)}</strong>
-                          </div>
-                          <div>
-                            <span>Suppliers</span>
-                            <strong>
-                              {o.payload.supplier_count} confirmed
-                            </strong>
-                          </div>
-                          <div>
-                            <span>Fulfilment location</span>
-                            <strong>{o.payload.location}</strong>
-                          </div>
-                        </div>
-                        <div className="order-footer">
-                          <button
-                            className="button primary small"
-                            onClick={() => setTracking(o.id)}
-                          >
-                            <Truck size={14} /> Track shipments
-                          </button>
-                          <button
-                            className="button secondary small"
-                            onClick={() => setReceipt(o)}
-                          >
-                            <Download size={14} />
-                            View receipt
-                          </button>
-                          {o.status === "confirmed" && (
-                            <button
-                              className="text-button danger"
-                              onClick={() => setCancel(o)}
-                            >
-                              Cancel & release inventory
-                            </button>
-                          )}
-                        </div>
-                      </section>
-                    ))
-                  ) : (
-                    <section className="panel">
-                      <Empty
-                        title="No orders yet"
-                        description="Approved rescue plans become confirmed orders here."
-                        action={
-                          <button
-                            className="button primary"
-                            onClick={() => setNewRequest(true)}
-                          >
-                            Create a request <ArrowRight size={15} />
-                          </button>
-                        }
-                      />
-                    </section>
-                  )}
-                </div>
+                <Orders
+                  orders={data?.orders || []}
+                  onTrack={setTracking}
+                  onReceipt={setReceipt}
+                  onCancel={setCancel}
+                  onNew={() => setNewRequest(true)}
+                />
               )}
               {page === "guide" && (
                 <Guide config={config} onNew={() => setNewRequest(true)} />

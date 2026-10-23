@@ -306,6 +306,26 @@ class SupplyService:
                     () if operator else (owner,),
                 )
             ]
+            for order in orders:
+                row = conn.execute("SELECT owner FROM orders WHERE id=?", (order["id"],)).fetchone()
+                tracking = self.tracking(order["id"], row["owner"], conn)
+                order["fulfilment_status"] = tracking["status"]
+                order["shipments"] = [
+                    {
+                        key: shipment[key]
+                        for key in (
+                            "supplier_id",
+                            "supplier_name",
+                            "status",
+                            "estimated_delivery",
+                            "overdue",
+                        )
+                    }
+                    for shipment in tracking["shipments"]
+                ]
+                order["can_cancel"] = order["status"] != "cancelled" and not any(
+                    s["status"] in {"dispatched", "delivered"} for s in tracking["shipments"]
+                )
         return {
             "suppliers": self.suppliers(),
             "quotes": quotes,

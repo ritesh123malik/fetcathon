@@ -1,6 +1,6 @@
 import { PRODUCT_LABELS } from "./types";
 import { useState } from "react";
-import { Clock3, MapPin, Save } from "lucide-react";
+import { Clock3, MapPin, Save, Search, X } from "lucide-react";
 import { api, money } from "./api";
 import type { Supplier } from "./types";
 
@@ -11,6 +11,18 @@ export default function Suppliers({
   suppliers: Supplier[];
   onChange: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const visible = suppliers.filter(
+    (s) =>
+      `${s.name} ${s.area} ${s.inventory.map((i) => i.product).join(" ")}`
+        .toLowerCase()
+        .includes(query.toLowerCase()) &&
+      (filter === "all" ||
+        (filter === "active" && s.active) ||
+        (filter === "paused" && !s.active) ||
+        (filter === "low" && s.inventory.some((i) => i.stock < 20))),
+  );
   const [editing, setEditing] = useState<string | null>(null);
   const [stock, setStock] = useState(0);
   const [error, setError] = useState("");
@@ -51,9 +63,57 @@ export default function Suppliers({
           {error}
         </p>
       )}
+      <div className="workspace-toolbar">
+        <label className="search">
+          <Search size={16} />
+          <input
+            aria-label="Search suppliers"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search supplier, area or product…"
+          />
+        </label>
+        <span className="muted">
+          {visible.length} of {suppliers.length} suppliers
+        </span>
+      </div>
+      <div className="filter-tabs">
+        {[
+          ["all", "All suppliers"],
+          ["active", "Accepting orders"],
+          ["paused", "Paused"],
+          ["low", "Low / out of stock"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            className={filter === value ? "selected" : ""}
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {!visible.length && (
+        <div className="panel ops-panel">
+          No suppliers match.{" "}
+          <button
+            className="text-button"
+            onClick={() => {
+              setQuery("");
+              setFilter("all");
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
       <div className="supplier-grid">
-        {suppliers.map((s) => (
-          <article key={s.id} className="supplier-card">
+        {visible.map((s) => (
+          <article
+            key={s.id}
+            className={`supplier-card ${s.active ? "" : "supplier-paused"}`}
+          >
             <header>
               <span className={`supplier-avatar ${s.color}`}>{s.initials}</span>
               <div>
@@ -81,7 +141,10 @@ export default function Suppliers({
                 <span>AVAILABLE</span>
               </div>
               {s.inventory.map((item) => (
-                <div className="inventory-row" key={item.product}>
+                <div
+                  className={`inventory-row ${item.stock === 0 ? "stock-empty" : item.stock < 20 ? "stock-low" : ""}`}
+                  key={item.product}
+                >
                   <strong>{PRODUCT_LABELS[item.product]}</strong>
                   <span>{money(item.unit_paise)}</span>
                   {editing === `${s.id}-${item.product}` ? (
@@ -108,6 +171,15 @@ export default function Suppliers({
                       >
                         <Save size={14} />
                       </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label="Cancel stock edit"
+                        disabled={busy}
+                        onClick={() => setEditing(null)}
+                      >
+                        <X size={14} />
+                      </button>
                     </form>
                   ) : (
                     <button
@@ -117,8 +189,10 @@ export default function Suppliers({
                         setStock(item.stock);
                       }}
                     >
-                      {item.stock}
-                      <span> units</span>
+                      {item.stock === 0 ? "Out of stock" : item.stock}
+                      {item.stock > 0 && (
+                        <span> units{item.stock < 20 ? " · Low" : ""}</span>
+                      )}
                     </button>
                   )}
                 </div>

@@ -50,6 +50,15 @@ export interface Quote {
   events: TimelineEvent[];
 }
 export interface Order {
+  fulfilment_status?: string;
+  can_cancel?: boolean;
+  shipments?: {
+    supplier_id: string;
+    supplier_name: string;
+    status: string;
+    estimated_delivery: string;
+    overdue: boolean;
+  }[];
   id: string;
   quote_id: string;
   option_id: string;

@@ -162,3 +162,16 @@ docs/               Architecture, deployment and submission material
 
 Never publish `.env`, agent seeds, wallets, database files, or private conversation logs.
 Public deployments must set `ADMIN_API_KEY`; the Render blueprint generates one.
+
+## Operations dashboard
+
+The overview shows actual per-supplier fulfilment counts, available inventory coverage,
+and a queue of stock below 20 units and overdue shipment estimates. Orders support
+search by ID, supplier, product or destination; fulfilment/overdue filters; sorting;
+and JSON export of the filtered results. Dispatch-aware controls hide automatic
+cancellation when inventory can no longer be released safely.
+
+Requests have status filters (including expired quotes). Supplier search covers names,
+areas and products, with accepting/paused/low-stock filters and cancellable stock edits.
+Auto refresh updates the visible workspace every ten seconds and can be paused; the
+tracking dialog refreshes every five seconds. These are database updates, not courier GPS.
