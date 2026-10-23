@@ -125,7 +125,7 @@ def test_tracking_api_and_chat(tmp_path, requirements):
             return service.suppliers()
 
         reply = asyncio.run(workflow.handle(f"track {o['id']}", "chat-owner", suppliers))
-        assert "packing" in reply.text()
+        assert "packing" in reply.text().lower()
         assert "not live courier GPS" in reply.text()
         private = asyncio.run(workflow.handle(f"track {o['id']}", "other", suppliers))
         assert "not found" in private.text()

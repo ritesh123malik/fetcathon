@@ -112,8 +112,12 @@ def options_card(quote, preamble=""):
     ]
     return card(
         preamble
-        + f" Compared supplier availability for {quote['id']}. Quotes expire in 10 minutes. "
-        "Select a plan to review before anything is reserved.",
+        + f"### Your supply plans\n\nRequest `{quote['id']}` · Valid for **10 minutes**\n\n"
+        + "\n\n".join(
+            f"**{o['label']} — {money(o['total_paise'])}** · {o['eta_hours']} hours · {o['supplier_count']} supplier(s)\n\nReview: `review {quote['id']} {o['id']}`"
+            for o in quote["options"]
+        )
+        + "\n\n**Next:** choose a plan to review. Nothing is reserved yet.",
         "carousel",
         {"title": "Your rescue plans", "items": items},
     )
@@ -135,8 +139,14 @@ def review_card(quote, option):
     ]
     selection = {"quote_id": quote["id"], "option_id": option["id"]}
     return card(
-        "Review this demo order. Stock is rechecked at confirmation; a changed plan needs new approval. "
-        f"Text alternative: confirm {quote['id']} {option['id']}.",
+        "### Review your reservation\n\n"
+        + "| Detail | Value |\n| --- | --- |\n"
+        + "\n".join(
+            f"| {row['label']} | {str(row['value']).replace('|', '/').replace(chr(10), ' ')} |"
+            for row in rows
+        )
+        + f"\n\n**Approve:** `confirm {quote['id']} {option['id']}`\n\n"
+        "*Demo order. Stock is rechecked; any replacement requires fresh approval.*",
         "review",
         {
             "title": "Confirm your rescue plan",
@@ -153,19 +163,34 @@ def review_card(quote, option):
 def receipt_message(order):
     payload = order["payload"]
     details = "\n".join(
-        f"• {line['quantity']} {line['product']}s — {line['supplier_name']}"
+        f"| {line['product'].title()} | {line['quantity']} | {line['supplier_name']} | {money(line['quantity'] * line['unit_paise'])} |"
         for line in payload["lines"]
     )
-    reservations = ", ".join(r["id"] for r in payload["reservations"])
+    reservations = ", ".join(f"`{r['id']}`" for r in payload["reservations"])
+    title = "Reservation cancelled" if order["status"] == "cancelled" else "Reservation confirmed"
+    next_step = (
+        "Send `start` to create a new request."
+        if order["status"] == "cancelled"
+        else (
+            f"**Track:** `track {order['id']}`\n\n"
+            f"**Cancel before dispatch:** `cancel {order['id']}`"
+        )
+    )
     return ChatMessage(
         content=[
             TextContent(
                 type="text",
                 text=(
-                    f"Order {order['id']}: {order['status']}.\n{details}\nTotal: {money(payload['total_paise'])}. "
-                    f"Estimated fulfilment: {payload['eta_hours']} hours.\nReservation IDs: {reservations}.\n"
-                    "This is demo inventory; no real purchase or payment has occurred. "
-                    f"To release inventory, send: cancel {order['id']}. Send track {order['id']} for shipment updates. Say 'orders' to check status."
+                    f"### {title}\n\n**Order `{order['id']}`** · {order['status']}\n\n"
+                    f"| Product | Quantity | Supplier | Subtotal |\n| --- | ---: | --- | ---: |\n{details}\n\n"
+                    f"**Total: {money(payload['total_paise'])}**\n\n"
+                    + (
+                        "Inventory has been released.\n\n"
+                        if order["status"] == "cancelled"
+                        else f"Estimated fulfilment: **{payload['eta_hours']} hours** from confirmation.\n\n"
+                    )
+                    + f"Reservation IDs: {reservations}\n\n{next_step}\n\n"
+                    "*Demo inventory only. No real purchase or payment has occurred.*"
                 ),
             )
         ]

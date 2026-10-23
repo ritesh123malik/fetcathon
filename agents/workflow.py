@@ -7,7 +7,8 @@ from pydantic import ValidationError
 from uagents_core.contrib.protocols.chat import ChatMessage, TextContent
 
 from agents.cards import options_card, receipt_message, request_form, review_card
-from backend.catalogue import PRODUCTS, SCENARIOS
+from agents.responses import catalogue_message, orders_message, tracking_message
+from backend.catalogue import PRODUCTS
 from backend.config import Settings
 from backend.intent import extract_intent
 from backend.models import Requirements
@@ -91,26 +92,7 @@ class ChatWorkflow:
             "products",
         }:
             suppliers = await get_suppliers()
-            lines = [
-                f"{s['name']} · {s['eta_hours']}h · "
-                + ", ".join(
-                    f"{i['product']} {i['stock']} available @ INR {i['unit_paise'] / 100:.2f}"
-                    for i in s["inventory"]
-                )
-                for s in suppliers
-                if s["active"]
-            ]
-            return ChatMessage(
-                content=[
-                    TextContent(
-                        type="text",
-                        text="Demo supplier catalogue (no real merchants):\n"
-                        + "\n".join(lines)
-                        + "\nExamples:\n"
-                        + "\n".join(SCENARIOS.values()),
-                    )
-                ]
-            )
+            return catalogue_message(suppliers)
         tracking_id = re.search(r"\bSR-[A-F0-9]{8}\b", text, re.I)
         if re.search(r"\b(track|tracking|where)\b", text, re.I):
             orders = self.service.orders(owner)
@@ -119,46 +101,9 @@ class ChatWorkflow:
             report = self.service.tracking(
                 tracking_id.group().upper() if tracking_id else orders[0]["id"], owner
             )
-            lines = [
-                f"{s['supplier_name']}: {s['status']} · estimated delivery {s['estimated_delivery']}"
-                + (" · ETA overdue; operator update needed" if s["overdue"] else "")
-                + "\n"
-                + "\n".join(
-                    f"  {h['created_at']}: {h['status']} — {h['note']}" for h in s["history"]
-                )
-                for s in report["shipments"]
-            ]
-            return ChatMessage(
-                content=[
-                    TextContent(
-                        type="text",
-                        text=f"Tracking {report['order_id']} · {report['status']}\nDemo operator-reported fulfilment; not live courier GPS.\n"
-                        + "\n".join(lines),
-                    )
-                ]
-            )
+            return tracking_message(report)
         if command in {"orders", "status"}:
-            orders = self.service.orders(owner)
-            if orders:
-                return ChatMessage(
-                    content=[
-                        TextContent(
-                            type="text",
-                            text="\n".join(
-                                f"{o['id']}: {o['status']} · INR {o['payload']['total_paise'] / 100:.2f}"
-                                for o in orders
-                            ),
-                        )
-                    ]
-                )
-            return ChatMessage(
-                content=[
-                    TextContent(
-                        type="text",
-                        text="No orders in this conversation yet. Say 'start' to begin.",
-                    )
-                ]
-            )
+            return orders_message(self.service.orders(owner))
         action = parse_action(text)
         kind = action.get("action")
         if kind == "cancel" and action.get("order_id"):
