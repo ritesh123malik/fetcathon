@@ -11,7 +11,7 @@ def money(paise):
     return f"INR {paise / 100:,.2f}"
 
 
-def card(text: str, kind: str, payload: dict):
+def card(text: str, kind: str, payload: dict, *, interaction=True):
     return ChatMessage(
         content=[
             TextContent(type="text", text=text),
@@ -19,7 +19,7 @@ def card(text: str, kind: str, payload: dict):
                 type="metadata",
                 metadata={
                     "card_protocol_version": "1",
-                    "requires_card_interaction": "true",
+                    "requires_card_interaction": "true" if interaction else "false",
                     "card_kind": kind,
                     "card_payload": json.dumps(payload),
                 },

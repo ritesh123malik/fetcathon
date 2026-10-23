@@ -91,3 +91,49 @@ def test_normalization_preserves_transaction_intent():
         ]
         is None
     )
+
+
+def test_catalogue_card_selection_and_examples(service):
+    workflow = ChatWorkflow(service, Settings(_env_file=None))
+
+    async def suppliers():
+        return service.suppliers()
+
+    async def run():
+        catalogue = await workflow.handle("catalogue", "user", suppliers)
+        meta = metadata(catalogue)
+        assert meta["card_kind"] == "carousel"
+        assert meta["requires_card_interaction"] == "false"
+        items = json.loads(meta["card_payload"])["items"]
+        assert len(items) == 6
+        for item in items:
+            selection = item["primary_cta"]["selection"]
+            detail = await workflow.handle(json.dumps(selection), "user", suppliers)
+            assert item["title"] in detail.text()
+            assert "| Product | Each | Stock |" in detail.text()
+            fallback = await workflow.handle(f"supplier {item['id']}", "user", suppliers)
+            assert fallback.text() == detail.text()
+        examples = await workflow.handle("examples", "user", suppliers)
+        assert "Conference" in examples.text()
+
+    asyncio.run(run())
+
+
+def test_compact_tracking_and_full_history(service, requirements):
+    workflow = ChatWorkflow(service, Settings(_env_file=None))
+    q = service.quote(requirements, "user")
+    o = service.confirm(q["id"], "option-1", "user")["order"]
+    supplier = o["payload"]["reservations"][0]["supplier_id"]
+    service.advance_shipment(o["id"], "user", supplier, "packing", "Unique packing note")
+    service.advance_shipment(o["id"], "user", supplier, "dispatched", "Unique dispatch note")
+
+    async def suppliers():
+        return service.suppliers()
+
+    compact = asyncio.run(workflow.handle(f"track {o['id']}", "user", suppliers)).text()
+    detailed = asyncio.run(workflow.handle(f"history {o['id']}", "user", suppliers)).text()
+    assert "Unique packing note" not in compact
+    assert "Unique dispatch note" in compact
+    assert "Unique packing note" in detailed
+    assert "Unique dispatch note" in detailed
+    assert "IST" in detailed

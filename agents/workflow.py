@@ -7,7 +7,13 @@ from pydantic import ValidationError
 from uagents_core.contrib.protocols.chat import ChatMessage, TextContent
 
 from agents.cards import options_card, receipt_message, request_form, review_card
-from agents.responses import catalogue_message, orders_message, tracking_message
+from agents.responses import (
+    catalogue_message,
+    examples_message,
+    orders_message,
+    supplier_message,
+    tracking_message,
+)
 from backend.catalogue import PRODUCTS
 from backend.config import Settings
 from backend.intent import extract_intent
@@ -82,11 +88,26 @@ class ChatWorkflow:
         if not text.strip() or command in {"start", "hi", "hello", "help"}:
             self.service.conversation(owner, [])
             return request_form()
+        if command in {"examples", "use cases"}:
+            return examples_message()
+        selection = parse_action(text)
+        if command.startswith("supplier ") or selection.get("action") == "supplier":
+            identifier = (
+                selection.get("supplier_id")
+                if selection.get("action") == "supplier"
+                else command.removeprefix("supplier ").strip()
+            )
+            suppliers = await get_suppliers()
+            supplier = next(
+                (s for s in suppliers if s["id"] == identifier or s["name"].lower() == identifier),
+                None,
+            )
+            if not supplier:
+                raise DomainError("Supplier not found. Send catalogue to choose a supplier.")
+            return supplier_message(supplier)
         if command in {
             "catalogue",
             "catalog",
-            "use cases",
-            "examples",
             "suppliers",
             "vendors",
             "products",
@@ -94,16 +115,19 @@ class ChatWorkflow:
             suppliers = await get_suppliers()
             return catalogue_message(suppliers)
         tracking_id = re.search(r"\bSR-[A-F0-9]{8}\b", text, re.I)
-        if re.search(r"\b(track|tracking|where)\b", text, re.I):
+        if re.search(r"\b(track|tracking|where|history)\b", text, re.I):
             orders = self.service.orders(owner)
             if not tracking_id and not orders:
                 raise DomainError("No orders in this conversation to track yet.")
             report = self.service.tracking(
                 tracking_id.group().upper() if tracking_id else orders[0]["id"], owner
             )
-            return tracking_message(report)
+            return tracking_message(report, detailed=bool(re.search(r"\bhistory\b", text, re.I)))
         if command in {"orders", "status"}:
-            return orders_message(self.service.orders(owner))
+            orders = self.service.orders(owner)
+            for order in orders[:10]:
+                order["fulfilment_status"] = self.service.tracking(order["id"], owner)["status"]
+            return orders_message(orders)
         action = parse_action(text)
         kind = action.get("action")
         if kind == "cancel" and action.get("order_id"):
